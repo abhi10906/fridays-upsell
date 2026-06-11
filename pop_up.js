@@ -3,7 +3,12 @@
 
   // ─────────────────────────────────────────────────────────────────
   // UPSELL PATH CONFIG
- 
+  //
+  // Each entry defines one upsell path:
+  //   triggerValue  → the plan the user clicked (we intercept this)
+  //   upgradeValue  → the plan we want them to upgrade to
+  //   modal         → all the content shown inside the popup
+  // ─────────────────────────────────────────────────────────────────
   const UPSELL_PATHS = {
 
     // PATH 1: User clicks "Medication Only" → upsell to "Monthly Auto-Refill"
@@ -58,15 +63,17 @@
 
   };
 
+  // ─────────────────────────────────────────────────────────────────
   // STATE
-
+  // ─────────────────────────────────────────────────────────────────
   let originallyClickedLabel = null; // the label the user originally clicked
   let currentUpgradeValue    = null; // which plan to select on upgrade
   let isListenerAttached     = false;
   let currentUrl             = location.href;
 
-  
+  // ─────────────────────────────────────────────────────────────────
   // STYLES — injected once
+  // ─────────────────────────────────────────────────────────────────
   function injectStyles() {
     if (document.getElementById("ff-upsell-styles")) return;
 
@@ -338,8 +345,9 @@
     document.head.appendChild(style);
   }
 
+  // ─────────────────────────────────────────────────────────────────
   // BUILD MODAL SHELL — only once, content is updated dynamically
-  
+  // ─────────────────────────────────────────────────────────────────
   function buildModal() {
     if (document.getElementById("ff-upsell-overlay")) return;
 
@@ -407,7 +415,9 @@
     });
   }
 
+  // ─────────────────────────────────────────────────────────────────
   // POPULATE MODAL with the correct path's content
+  // ─────────────────────────────────────────────────────────────────
   function populateModal(config) {
     document.getElementById("ff-top-badge").textContent        = config.topBadge;
     document.getElementById("ff-modal-headline").innerHTML     = config.headline;
@@ -433,7 +443,9 @@
     });
   }
 
+  // ─────────────────────────────────────────────────────────────────
   // SHOW / HIDE MODAL
+  // ─────────────────────────────────────────────────────────────────
   function showModal() {
     const overlay = document.getElementById("ff-upsell-overlay");
     if (!overlay) return;
@@ -457,7 +469,9 @@
     }, 300);
   }
 
+  // ─────────────────────────────────────────────────────────────────
   // PLAN SELECTION — programmatically clicks the radio button
+  // ─────────────────────────────────────────────────────────────────
   function selectPlanByValue(value) {
     const btn = document.querySelector('button[role="radio"][value="' + value + '"]');
     if (btn) {
@@ -468,7 +482,9 @@
     }
   }
 
+  // ─────────────────────────────────────────────────────────────────
   // BUTTON HANDLERS
+  // ─────────────────────────────────────────────────────────────────
   function handleUpgrade() {
     hideModal();
     selectPlanByValue(currentUpgradeValue);
@@ -489,26 +505,33 @@
     currentUpgradeValue    = null;
   }
 
+  // ─────────────────────────────────────────────────────────────────
   // INTERCEPT PLAN CLICKS
-
+  // ─────────────────────────────────────────────────────────────────
   function handlePlanClick(e) {
+    // Walk up from clicked element to find the plan label
     const label = e.target.closest('label[data-slot="radio-group-item"]');
     if (!label) return;
 
+    // Get the radio button inside this label
     const radioBtn = label.querySelector('button[role="radio"]');
     if (!radioBtn) return;
 
     const clickedValue = radioBtn.getAttribute("value");
 
+    // Check if this plan has a defined upsell path
     const path = UPSELL_PATHS[clickedValue];
     if (!path) return; // not an intercepted plan, let it behave normally
 
+    // Block default selection
     e.preventDefault();
     e.stopPropagation();
 
+    // Save state for handlers
     originallyClickedLabel = label;
     currentUpgradeValue    = path.upgradeValue;
 
+    // Fill modal with the correct content for this path
     populateModal(path.modal);
 
     // Show it
@@ -517,14 +540,19 @@
     console.log("[FF Upsell] Intercepted plan:", clickedValue, "→ upsell to:", path.upgradeValue);
   }
 
+  // ─────────────────────────────────────────────────────────────────
   // ATTACH LISTENER TO RADIO GROUP
+  // Event delegation on the parent radiogroup — survives re-renders
+  // ─────────────────────────────────────────────────────────────────
   function attachPlanListener() {
     const radioGroup = document.querySelector('[role="radiogroup"][data-slot="radio-group"]');
     if (!radioGroup) return false;
 
+    // Stamp to avoid duplicate listeners on the same element
     if (radioGroup.dataset.ffAttached === "true") return true;
     radioGroup.dataset.ffAttached = "true";
 
+    // Capture phase so we intercept before Radix UI's own handler
     radioGroup.addEventListener("click", handlePlanClick, true);
     isListenerAttached = true;
 
@@ -532,8 +560,11 @@
     return true;
   }
 
+  // ─────────────────────────────────────────────────────────────────
   // SPA NAVIGATION WATCHER
-
+  // Handles Next.js / React SPA navigation so our logic survives
+  // back/forward navigation and route changes
+  // ─────────────────────────────────────────────────────────────────
   function watchForPage() {
 
     // 1. MutationObserver — re-attaches listener when DOM rebuilds
@@ -573,7 +604,9 @@
     });
   }
 
+  // ─────────────────────────────────────────────────────────────────
   // INIT
+  // ─────────────────────────────────────────────────────────────────
   function init() {
     console.log("[FF Upsell] Initializing...");
     injectStyles();
